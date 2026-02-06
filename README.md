@@ -1,8 +1,4 @@
-Got it. Below is a **clean, corrected, and fully consistent rewrite of `README.md`**, aligned exactly with the **current scripts**, their behavior, and the decisions we made (host-only terminal styling, container guards, Podman workflow, Bash 3 compatibility, etc.).
 
-This version is **safe for a public repo**, avoids GitHub YAML parsing issues, and clearly explains what is optional vs required.
-
-You can replace your `README.md` entirely with this.
 
 ---
 
