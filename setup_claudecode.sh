@@ -24,7 +24,6 @@ if ! command -v podman >/dev/null 2>&1; then
     echo "👉 Install Homebrew from https://brew.sh and re-run."
     exit 1
   fi
-
   echo "📦 Installing Podman via Homebrew..."
   brew install podman
 else
@@ -35,9 +34,9 @@ fi
 # Ensure Podman machine exists (inspect is authoritative)
 # -------------------------------------------------
 if podman machine inspect "$MACHINE_NAME" >/dev/null 2>&1; then
-  echo "✅ Podman machine exists: ${MACHINE_NAME}"
+  echo "✅ Podman machine exists: $MACHINE_NAME"
 else
-  echo "⚙️  Creating Podman machine: ${MACHINE_NAME}"
+  echo "⚙️  Creating Podman machine: $MACHINE_NAME"
   podman machine init \
     --memory "$MIN_MEMORY_MB" \
     --cpus "$MIN_CPUS" \
@@ -89,7 +88,6 @@ fi
 # Start machine ONLY if not running
 # -------------------------------------------------
 STATE="$(podman machine inspect "$MACHINE_NAME" --format '{{.State}}')"
-
 if [ "$STATE" != "running" ]; then
   echo "▶️  Starting Podman machine..."
   podman machine start "$MACHINE_NAME"
@@ -98,12 +96,12 @@ else
 fi
 
 # -------------------------------------------------
-# Prompt for Anthropic API key (TTY-safe, visible UX)
+# Prompt for Anthropic API key (TTY-safe, clear UX)
 # -------------------------------------------------
 echo
 echo "🔐 Anthropic API Key"
 echo "• Type or paste your key"
-echo "• Input is hidden (nothing will appear)"
+echo "• Input is hidden"
 echo "• Press ENTER when finished"
 echo
 
@@ -119,10 +117,10 @@ fi
 echo "✅ API key received."
 
 # -------------------------------------------------
-# Write Containerfile (idempotent)
+# Write Containerfile (Claude installed as developer)
 # -------------------------------------------------
 echo
-echo "📝 Writing Claude Code Containerfile..."
+echo "📝 Writing Containerfile..."
 
 cat > Containerfile <<'EOF'
 FROM alpine:latest
@@ -136,12 +134,12 @@ RUN apk add --no-cache \
     libstdc++ \
     ripgrep
 
-ENV USE_BUILTIN_RIPGREP=0
-
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
+# Create user FIRST
 RUN adduser -D developer
 USER developer
+
+ENV USE_BUILTIN_RIPGREP=0
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 ENV PATH="/home/developer/.local/bin:$PATH"
 ENV HISTFILE=/dev/null
@@ -153,17 +151,18 @@ CMD ["bash"]
 EOF
 
 # -------------------------------------------------
-# Build image (cached if unchanged)
+# Build image
 # -------------------------------------------------
 echo "🐳 Building Claude Code image..."
 podman build -t "$IMAGE_NAME" .
 
 # -------------------------------------------------
-# Run container and enter shell
+# Run container (FORCE interactive shell)
 # -------------------------------------------------
 echo
 echo "🚀 Entering Claude Code container"
-echo "👉 Inside the container, run: claude"
+echo "👉 You are now INSIDE the container"
+echo "👉 Run: claude"
 echo
 
 podman run --rm -it \
@@ -171,5 +170,6 @@ podman run --rm -it \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   -v "$(pwd):/workspace:Z" \
   -w /workspace \
-  "$IMAGE_NAME"
+  "$IMAGE_NAME" \
+  bash
 
