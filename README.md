@@ -1,7 +1,5 @@
 
 
----
-
 ````markdown
 ---
 title: "Claude Code Dev Environment"
