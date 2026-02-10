@@ -16,7 +16,6 @@ This repository provides a small set of Bash scripts to set up Podman correctly,
 - 🐳 **Podman-based** (no Docker Desktop required)
 - 🤖 **Claude Code** installed inside a disposable container
 - 📁 **Host-mounted workspace** (`/workspace` ↔ current directory)
-- 🔐 Secure, interactive Anthropic API key input (never written to disk)
 - 🔁 Scripts are **idempotent** (safe to re-run)
 - 🧭 Interactive container selection when multiple containers are running
 - 💻 Compatible with **macOS default Bash (3.2)**
@@ -78,13 +77,6 @@ From your project directory:
 chmod +x setup_claudecode.sh
 ./setup_claudecode.sh
 ```
-
-You will be prompted to enter your **Anthropic API key** securely:
-
-* Input is hidden
-* The key is not saved to disk
-* The key exists only for the lifetime of the container
-
 After setup completes, you will be dropped **inside the container** in:
 
 ```text
@@ -138,19 +130,6 @@ This means:
 
 Only tooling lives in the container.
 Your source code always stays on the host.
-
----
-
-## 🔐 Security notes
-
-* Your Anthropic API key:
-
-  * Is entered interactively
-  * Is never written to disk
-  * Is not stored in `.env` files
-  * Exists only for the lifetime of the container
-* Containers run as a non-root user (`developer`)
-* Containers are disposable (`--rm`)
 
 ---
 
