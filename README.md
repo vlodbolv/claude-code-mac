@@ -208,13 +208,6 @@ The container setup does, but the Podman VM scripts are macOS-specific.
 
 ---
 
-## 📜 License
-
-MIT (or your preferred license).
-
-```
-
----
 
 
 ```
