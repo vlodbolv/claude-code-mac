@@ -1,106 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🤖 Claude Code Podman Setup (macOS) - OAuth Edition"
+echo "🤖 Claude Code Podman Setup (macOS) - Maximum Security Edition"
 echo
 
-# -------------------------------------------------
-# Configuration (Claude-safe minimums)
-# -------------------------------------------------
 MACHINE_NAME="podman-machine-default"
 IMAGE_NAME="claude-code-dev"
-CONTAINER_NAME="claude-code-dev-container"
 
 MIN_MEMORY_MB=8192
 MIN_CPUS=4
 MIN_DISK_GB=50
 
-# -------------------------------------------------
-# Ensure Podman is installed
-# -------------------------------------------------
+# 1. Create the isolated workspace folder
+mkdir -p workspace
+
+# 2. Create a bulletproof .gitignore
+cat << 'EOF' > .gitignore
+.env
+*.token
+.claude-local/
+claude.log
+.podman/
+.DS_Store
+EOF
+
+# 3. Ensure Podman Machine is running
 if ! command -v podman >/dev/null 2>&1; then
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "❌ Podman is not installed and Homebrew is missing."
-    echo "👉 Install Homebrew from https://brew.sh and re-run."
-    exit 1
-  fi
-  echo "📦 Installing Podman via Homebrew..."
-  brew install podman
-else
-  echo "✅ Podman already installed"
+  echo "❌ Podman is not installed. Run ./setup_podman.sh first."
+  exit 1
 fi
 
-# -------------------------------------------------
-# Ensure Podman machine exists
-# -------------------------------------------------
-if podman machine inspect "$MACHINE_NAME" >/dev/null 2>&1; then
-  echo "✅ Podman machine exists: $MACHINE_NAME"
-else
+if ! podman machine inspect "$MACHINE_NAME" >/dev/null 2>&1; then
   echo "⚙️  Creating Podman machine: $MACHINE_NAME"
-  podman machine init \
-    --memory "$MIN_MEMORY_MB" \
-    --cpus "$MIN_CPUS" \
-    --disk-size "$MIN_DISK_GB" \
-    "$MACHINE_NAME" || true
+  podman machine init --memory "$MIN_MEMORY_MB" --cpus "$MIN_CPUS" --disk-size "$MIN_DISK_GB" "$MACHINE_NAME" || true
 fi
 
-# -------------------------------------------------
-# Inspect machine state
-# -------------------------------------------------
-STATE="$(podman machine inspect "$MACHINE_NAME" --format '{{.State}}' 2>/dev/null || echo unknown)"
-MEMORY_MB="$(podman machine inspect "$MACHINE_NAME" --format '{{.Resources.Memory}}')"
-CPUS="$(podman machine inspect "$MACHINE_NAME" --format '{{.Resources.CPUs}}')"
-DISK_GB="$(podman machine inspect "$MACHINE_NAME" --format '{{.Resources.DiskSize}}')"
-
-echo
-echo "🔍 Podman machine status:"
-echo "    • State:   $STATE"
-echo "    • Memory:  ${MEMORY_MB} MB"
-echo "    • CPUs:    ${CPUS}"
-echo "    • Disk:    ${DISK_GB} GB"
-echo
-
-# -------------------------------------------------
-# Resize machine ONLY if needed
-# -------------------------------------------------
-NEEDS_RESIZE=false
-[ "$MEMORY_MB" -lt "$MIN_MEMORY_MB" ] && NEEDS_RESIZE=true
-[ "$CPUS" -lt "$MIN_CPUS" ] && NEEDS_RESIZE=true
-[ "$DISK_GB" -lt "$MIN_DISK_GB" ] && NEEDS_RESIZE=true
-
-if [ "$NEEDS_RESIZE" = true ]; then
-  echo "🔧 Podman machine does not meet Claude Code requirements."
-
-  if [ "$STATE" = "running" ]; then
-    echo "🛑 Stopping Podman machine to resize..."
-    podman machine stop "$MACHINE_NAME"
-  fi
-
-  echo "➡️  Resizing Podman machine..."
-  podman machine set \
-    --memory "$MIN_MEMORY_MB" \
-    --cpus "$MIN_CPUS" \
-    --disk-size "$MIN_DISK_GB" \
-    "$MACHINE_NAME"
-fi
-
-# -------------------------------------------------
-# Start machine ONLY if not running
-# -------------------------------------------------
-STATE="$(podman machine inspect "$MACHINE_NAME" --format '{{.State}}')"
-if [ "$STATE" != "running" ]; then
+if [ "$(podman machine inspect "$MACHINE_NAME" --format '{{.State}}')" != "running" ]; then
   echo "▶️  Starting Podman machine..."
   podman machine start "$MACHINE_NAME"
-else
-  echo "▶️  Podman machine already running"
 fi
 
-# -------------------------------------------------
-# Write Containerfile
-# -------------------------------------------------
-echo
+# 4. Write Containerfile
 echo "📝 Writing Containerfile..."
-
 cat > Containerfile <<'EOF'
 FROM alpine:latest
 
@@ -113,40 +54,20 @@ RUN apk add --no-cache \
     libstdc++ \
     ripgrep
 
-# Create user
-RUN adduser -D developer
-USER developer
-
+# Install Claude Code globally. Running natively as root prevents EACCES permission errors.
 ENV USE_BUILTIN_RIPGREP=0
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
-ENV PATH="/home/developer/.local/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH"
 ENV HISTFILE=/dev/null
 
 WORKDIR /workspace
-VOLUME /workspace
-
 CMD ["bash"]
 EOF
 
-# -------------------------------------------------
-# Build image
-# -------------------------------------------------
-echo "🐳 Building Claude Code image..."
-podman build -t "$IMAGE_NAME" .
+# 5. Build image
+echo "🐳 Building completely isolated Claude Code image..."
+podman build --no-cache -t "$IMAGE_NAME" .
 
-# -------------------------------------------------
-# Run container
-# -------------------------------------------------
 echo
-echo "🚀 Entering Claude Code container"
-echo "👉 You are now INSIDE the container"
-echo "👉 Run 'claude' and follow the OAuth URL to login"
-echo
-
-podman run --rm -it \
-  --name "$CONTAINER_NAME" \
-  -v "$(pwd):/workspace:Z" \
-  -w /workspace \
-  "$IMAGE_NAME" \
-  bash
+echo "✅ Setup complete. Run ./enter-claude.sh to start your isolated session."
