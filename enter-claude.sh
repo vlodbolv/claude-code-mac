@@ -4,7 +4,6 @@ set -e
 IMAGE_NAME="claude-code-dev"
 WORKDIR="/workspace"
 LOCAL_CLAUDE_DIR="$(pwd)/.claude-local"
-HOST_WORKSPACE_DIR="$(pwd)/workspace"
 
 echo "🤖 Claude Code – Enter Container (Maximum Security Mode)"
 echo
@@ -21,12 +20,12 @@ confirm() {
   done
 }
 
+# Step 1: Find running containers
 RUNNING_CONTAINERS="$(podman ps --filter "ancestor=$IMAGE_NAME" --format "{{.Names}}")"
 
 if [ -n "$RUNNING_CONTAINERS" ]; then
   echo "🟢 Running containers detected:"
   echo
-
   i=1
   CONTAINER_LIST=""
   for c in $RUNNING_CONTAINERS; do
@@ -35,58 +34,25 @@ if [ -n "$RUNNING_CONTAINERS" ]; then
     i=$((i + 1))
   done
   echo "  $i) Cancel"
-  echo
-
   printf "Select a container to enter: "
   read -r choice
-
-  if [ "$choice" -eq "$i" ]; then
-    echo "❌ Cancelled."
-    exit 0
-  fi
-
-  j=1
-  for c in $CONTAINER_LIST; do
-    if [ "$j" -eq "$choice" ]; then
-      echo
-      echo "🚪 Entering container: $c"
-      podman exec -it "$c" bash
-      exit 0
-    fi
-    j=$((j + 1))
-  done
-
-  echo "❌ Invalid selection."
-  exit 1
-fi
-
-echo "⚠️  No running containers found."
-echo
-
-if ! podman image exists "$IMAGE_NAME"; then
-  echo "❌ Image '$IMAGE_NAME' does not exist."
-  echo "👉 Run the setup script first."
-  exit 1
-fi
-
-if ! confirm "Would you like to start a new Claude Code container?"; then
-  echo "❌ Aborted."
+  if [ "$choice" -eq "$i" ]; then exit 0; fi
+  # Jumps into selected container
+  podman exec -it "$(echo $CONTAINER_LIST | cut -d' ' -f$choice)" bash
   exit 0
 fi
 
-echo
-echo "🚀 Starting new Claude Code container (Maximum Security)..."
-echo "👉 The container can ONLY see files inside the 'workspace/' directory."
-echo
+# Step 2: Start new container with Dual-Mount isolation
+if ! confirm "Would you like to start a new Claude Code container?"; then exit 0; fi
 
 mkdir -p "$LOCAL_CLAUDE_DIR"
-mkdir -p "$HOST_WORKSPACE_DIR"
 
-# Mount strictly the workspace subfolder and local credentials folder
+# MOUNT 1: Mounts local .claude-local folder to the container's root config
+# MOUNT 2: Mounts the current project folder to /workspace
 podman run --rm -it \
   --name "claude-session-$(date +%s)" \
   -v "$LOCAL_CLAUDE_DIR:/root/.claude:Z" \
-  -v "$HOST_WORKSPACE_DIR:$WORKDIR:Z" \
+  -v "$(pwd):$WORKDIR:Z" \
   -w "$WORKDIR" \
   "$IMAGE_NAME" \
   bash
