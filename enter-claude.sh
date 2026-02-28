@@ -3,17 +3,16 @@ set -e
 
 IMAGE_NAME="claude-code-dev"
 WORKDIR="/workspace"
+LOCAL_CLAUDE_DIR="$(pwd)/.claude-local"
+HOST_WORKSPACE_DIR="$(pwd)/workspace"
 
-echo "🤖 Claude Code – Enter Container"
+echo "🤖 Claude Code – Enter Container (Maximum Security Mode)"
 echo
 
-# --------------------------------------
-# Helper: yes/no prompt
-# --------------------------------------
 confirm() {
   while true; do
     printf "%s [y/n]: " "$1"
-    read yn
+    read -r yn
     case "$yn" in
       y|Y) return 0 ;;
       n|N) return 1 ;;
@@ -22,10 +21,7 @@ confirm() {
   done
 }
 
-# --------------------------------------
-# Step 1: Find running containers
-# --------------------------------------
-RUNNING_CONTAINERS="$(podman ps --format "{{.Names}}")"
+RUNNING_CONTAINERS="$(podman ps --filter "ancestor=$IMAGE_NAME" --format "{{.Names}}")"
 
 if [ -n "$RUNNING_CONTAINERS" ]; then
   echo "🟢 Running containers detected:"
@@ -42,7 +38,7 @@ if [ -n "$RUNNING_CONTAINERS" ]; then
   echo
 
   printf "Select a container to enter: "
-  read choice
+  read -r choice
 
   if [ "$choice" -eq "$i" ]; then
     echo "❌ Cancelled."
@@ -64,9 +60,6 @@ if [ -n "$RUNNING_CONTAINERS" ]; then
   exit 1
 fi
 
-# --------------------------------------
-# Step 2: No running containers
-# --------------------------------------
 echo "⚠️  No running containers found."
 echo
 
@@ -81,17 +74,19 @@ if ! confirm "Would you like to start a new Claude Code container?"; then
   exit 0
 fi
 
-# --------------------------------------
-# Step 3: Start new container
-# --------------------------------------
 echo
-echo "🚀 Starting new Claude Code container..."
-echo "👉 You are entering the container shell"
+echo "🚀 Starting new Claude Code container (Maximum Security)..."
+echo "👉 The container can ONLY see files inside the 'workspace/' directory."
 echo
 
+mkdir -p "$LOCAL_CLAUDE_DIR"
+mkdir -p "$HOST_WORKSPACE_DIR"
+
+# Mount strictly the workspace subfolder and local credentials folder
 podman run --rm -it \
-  -v "$(pwd):$WORKDIR:Z" \
+  --name "claude-session-$(date +%s)" \
+  -v "$LOCAL_CLAUDE_DIR:/root/.claude:Z" \
+  -v "$HOST_WORKSPACE_DIR:$WORKDIR:Z" \
   -w "$WORKDIR" \
   "$IMAGE_NAME" \
   bash
-
